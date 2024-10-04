@@ -167,3 +167,95 @@ class AABB(Shape):
         v = min(0.999, max(0, v))
 
         return Intercep(point=intercept.point, normal=intercept.normal, distance=t, texCoords=[u, v], rayDirection=dir, obj=self)
+class Triangle(Shape):
+    def __init__(self, v0, v1, v2, material):
+        super().__init__(position=None, material=material)
+        self.v0 = v0
+        self.v1 = v1
+        self.v2 = v2
+        self.normal = normalize(vector_cross(vector_subtract(v1, v0), vector_subtract(v2, v0)))
+        self.type = "Triangle"
+    
+    def ray_intersect(self, orig, dir):
+        edge1 = vector_subtract(self.v1, self.v0)
+        edge2 = vector_subtract(self.v2, self.v0)
+        h = vector_cross(dir, edge2)
+        a = vector_dot(edge1, h)
+
+        if isclose(a, 0):
+            return None
+        
+        f = 1.0 / a
+        s = vector_subtract(orig, self.v0)
+        u = f * vector_dot(s, h)
+        
+        if u < 0.0 or u > 1.0:
+            return None
+        
+        q = vector_cross(s, edge1)
+        v = f * vector_dot(dir, q)
+        
+        if v < 0.0 or u + v > 1.0:
+            return None
+        
+        t = f * vector_dot(edge2, q)
+        if t > 0.0001:
+            P = vector_add(orig, vector_multiply(dir, t))
+            return Intercep(point=P, normal=self.normal, distance=t, texCoords=[u, v], rayDirection=dir, obj=self)
+        else:
+            return None
+class OBB(Shape):
+    def __init__(self, position, sizes, rotation_matrix, material):
+        super().__init__(position, material)
+        self.sizes = sizes
+        self.rotation_matrix = rotation_matrix 
+        self.type = "OBB"
+    
+    def ray_intersect(self, orig, dir):
+        inv_rotation = inverse_matrix(self.rotation_matrix)
+        transformed_orig = matrix_multiply(inv_rotation, vector_subtract(orig, self.position))
+        transformed_dir = matrix_multiply(inv_rotation, dir)
+
+        aabb = AABB([0, 0, 0], self.sizes, self.material)
+        intercept = aabb.ray_intersect(transformed_orig, transformed_dir)
+        
+        if intercept is not None:
+            intercept.point = matrix_multiply(self.rotation_matrix, intercept.point)
+            intercept.point = vector_add(intercept.point, self.position)
+        return intercept
+class Cylinder(Shape):
+    def __init__(self, position, radius, height, material):
+        super().__init__(position, material)
+        self.radius = radius
+        self.height = height
+        self.type = "Cylinder"
+    
+    def ray_intersect(self, orig, dir):
+    
+        pass
+class Capsule(Shape):
+    def __init__(self, position, radius, height, material):
+        super().__init__(position, material)
+        self.radius = radius
+        self.height = height
+        self.type = "Capsule"
+    
+    def ray_intersect(self, orig, dir):
+        pass
+class Torus(Shape):
+    def __init__(self, position, ring_radius, tube_radius, material):
+        super().__init__(position, material)
+        self.ring_radius = ring_radius
+        self.tube_radius = tube_radius
+        self.type = "Torus"
+    
+    def ray_intersect(self, orig, dir):
+        pass
+class Ellipsoid(Shape):
+    def __init__(self, position, radii, material):
+        super().__init__(position, material)
+        self.radii = radii  # [rx, ry, rz]
+        self.type = "Ellipsoid"
+    
+    def ray_intersect(self, orig, dir):
+        pass
