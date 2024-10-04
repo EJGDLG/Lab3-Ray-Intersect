@@ -96,3 +96,39 @@ def multiplyMatrices(m1, m2):
 			for k in range(len(m2)):
 				result[i][j] += m1[i][k] * m2[k][j]
 	return result
+
+def matrix_multiply(m1, m2):
+    result = [[0 for _ in range(len(m2[0]))] for _ in range(len(m1))]
+    for i in range(len(m1)):
+        for j in range(len(m2[0])):
+            for k in range(len(m2)):
+                result[i][j] += m1[i][k] * m2[k][j]
+    return result
+
+def inverse_matrix(m):
+    det = (m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+           m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+           m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]))
+
+    if det == 0:
+        return None
+
+    inv_det = 1 / det
+    adj = [[(m[1][1] * m[2][2] - m[1][2] * m[2][1]) * inv_det,
+            -(m[0][1] * m[2][2] - m[0][2] * m[2][1]) * inv_det,
+            (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * inv_det],
+           [-(m[1][0] * m[2][2] - m[1][2] * m[2][0]) * inv_det,
+            (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * inv_det,
+            -(m[0][0] * m[1][2] - m[0][2] * m[1][0]) * inv_det],
+           [(m[1][0] * m[2][1] - m[1][1] * m[2][0]) * inv_det,
+            -(m[0][0] * m[2][1] - m[0][1] * m[2][0]) * inv_det,
+            (m[0][0] * m[1][1] - m[0][1] * m[1][0]) * inv_det]]
+
+    return adj
+
+def vector_cross(v1, v2):
+    return [
+        v1[1] * v2[2] - v1[2] * v2[1],
+        v1[2] * v2[0] - v1[0] * v2[2],
+        v1[0] * v2[1] - v1[1] * v2[0]
+    ]

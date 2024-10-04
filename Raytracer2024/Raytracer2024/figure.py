@@ -1,5 +1,6 @@
 from intercep import Intercep
 from math import atan2, acos, pi, isclose, sqrt
+from MathLib import *
 
 def vector_subtract(v1, v2):
     return [v1[i] - v2[i] for i in range(len(v1))]
@@ -167,95 +168,150 @@ class AABB(Shape):
         v = min(0.999, max(0, v))
 
         return Intercep(point=intercept.point, normal=intercept.normal, distance=t, texCoords=[u, v], rayDirection=dir, obj=self)
-class Triangle(Shape):
-    def __init__(self, v0, v1, v2, material):
-        super().__init__(position=None, material=material)
-        self.v0 = v0
-        self.v1 = v1
-        self.v2 = v2
-        self.normal = normalize(vector_cross(vector_subtract(v1, v0), vector_subtract(v2, v0)))
-        self.type = "Triangle"
-    
-    def ray_intersect(self, orig, dir):
-        edge1 = vector_subtract(self.v1, self.v0)
-        edge2 = vector_subtract(self.v2, self.v0)
-        h = vector_cross(dir, edge2)
-        a = vector_dot(edge1, h)
 
+class Triangle(Shape):
+    def __init__(self, A, B, C, material):
+        super().__init__(None, material)
+        self.A = A
+        self.B = B
+        self.C = C
+        self.type = "Triangle"
+
+    def ray_intersect(self, orig, dir):
+        # Normal del triángulo
+        edge1 = subtract(self.B, self.A)
+        edge2 = subtract(self.C, self.A)
+        h = vector_cross(dir, edge2)
+        a = dot(edge1, h)
+        
         if isclose(a, 0):
             return None
-        
+
         f = 1.0 / a
-        s = vector_subtract(orig, self.v0)
-        u = f * vector_dot(s, h)
+        s = subtract(orig, self.A)
+        u = f * dot(s, h)
         
         if u < 0.0 or u > 1.0:
             return None
         
         q = vector_cross(s, edge1)
-        v = f * vector_dot(dir, q)
+        v = f * dot(dir, q)
         
         if v < 0.0 or u + v > 1.0:
             return None
+
+        t = f * dot(edge2, q)
         
-        t = f * vector_dot(edge2, q)
-        if t > 0.0001:
-            P = vector_add(orig, vector_multiply(dir, t))
-            return Intercep(point=P, normal=self.normal, distance=t, texCoords=[u, v], rayDirection=dir, obj=self)
-        else:
-            return None
+        if t > 0.001:  # Un pequeño margen para evitar intersecciones cercanas
+            P = vector_add(orig, multiply(t, dir))
+            normal = normalize(vector_cross(edge1, edge2))
+            return Intercep(point=P, normal=normal, distance=t, texCoords=[u, v], rayDirection=dir, obj=self)
+        
+        return None
 class OBB(Shape):
-    def __init__(self, position, sizes, rotation_matrix, material):
+    def __init__(self, position, size, rotation, material):
         super().__init__(position, material)
-        self.sizes = sizes
-        self.rotation_matrix = rotation_matrix 
+        self.size = size
+        self.rotation_matrix = RotationMatrix(*rotation)
         self.type = "OBB"
     
     def ray_intersect(self, orig, dir):
-        inv_rotation = inverse_matrix(self.rotation_matrix)
-        transformed_orig = matrix_multiply(inv_rotation, vector_subtract(orig, self.position))
-        transformed_dir = matrix_multiply(inv_rotation, dir)
+        # Transformar el rayo a las coordenadas locales del OBB
+        local_orig = multiplyMatrices(self.rotation_matrix, orig)
+        local_dir = multiplyMatrices(self.rotation_matrix, dir)
 
-        aabb = AABB([0, 0, 0], self.sizes, self.material)
-        intercept = aabb.ray_intersect(transformed_orig, transformed_dir)
+        # Ahora podemos tratar el OBB como un AABB en las coordenadas locales
+        bounds_min = [-self.size[i] / 2 for i in range(3)]
+        bounds_max = [self.size[i] / 2 for i in range(3)]
+
+        tmin = float("-inf")
+        tmax = float("inf")
+
+        for i in range(3):
+            if abs(local_dir[i]) < 1e-6:
+                if local_orig[i] < bounds_min[i] or local_orig[i] > bounds_max[i]:
+                    return None
+            else:
+                t1 = (bounds_min[i] - local_orig[i]) / local_dir[i]
+                t2 = (bounds_max[i] - local_orig[i]) / local_dir[i]
+                tmin = max(tmin, min(t1, t2))
+                tmax = min(tmax, max(t1, t2))
         
-        if intercept is not None:
-            intercept.point = matrix_multiply(self.rotation_matrix, intercept.point)
-            intercept.point = vector_add(intercept.point, self.position)
-        return intercept
+        if tmax < tmin or tmax < 0:
+            return None
+
+        t = tmin if tmin > 0 else tmax
+        P = vector_add(orig, multiply(t, dir))
+        normal = normalize(subtract(P, self.position))
+
+        return Intercep(point=P, normal=normal, distance=t, texCoords=None, rayDirection=dir, obj=self)
 class Cylinder(Shape):
     def __init__(self, position, radius, height, material):
         super().__init__(position, material)
         self.radius = radius
         self.height = height
         self.type = "Cylinder"
-    
+
     def ray_intersect(self, orig, dir):
-    
-        pass
-class Capsule(Shape):
-    def __init__(self, position, radius, height, material):
-        super().__init__(position, material)
-        self.radius = radius
-        self.height = height
-        self.type = "Capsule"
-    
-    def ray_intersect(self, orig, dir):
-        pass
-class Torus(Shape):
-    def __init__(self, position, ring_radius, tube_radius, material):
-        super().__init__(position, material)
-        self.ring_radius = ring_radius
-        self.tube_radius = tube_radius
-        self.type = "Torus"
-    
-    def ray_intersect(self, orig, dir):
-        pass
+        # Ecuaciones para intersección con un cilindro infinito
+        oc = subtract(orig, self.position)
+        a = dir[0]**2 + dir[2]**2
+        b = 2 * (oc[0] * dir[0] + oc[2] * dir[2])
+        c = oc[0]**2 + oc[2]**2 - self.radius**2
+        discriminant = b**2 - 4*a*c
+
+        if discriminant < 0:
+            return None
+
+        t0 = (-b - sqrt(discriminant)) / (2 * a)
+        t1 = (-b + sqrt(discriminant)) / (2 * a)
+
+        if t0 < 0:
+            t0 = t1
+        if t0 < 0:
+            return None
+        
+        P = vector_add(orig, multiply(t0, dir))
+        y = P[1] - self.position[1]
+
+        if y < 0 or y > self.height:
+            return None
+        
+        normal = [P[0] - self.position[0], 0, P[2] - self.position[2]]
+        normal = normalize(normal)
+
+        return Intercep(point=P, normal=normal, distance=t0, texCoords=None, rayDirection=dir, obj=self)
+
 class Ellipsoid(Shape):
     def __init__(self, position, radii, material):
         super().__init__(position, material)
-        self.radii = radii  # [rx, ry, rz]
+        self.radii = radii
         self.type = "Ellipsoid"
-    
+
     def ray_intersect(self, orig, dir):
-        pass
+        L = subtract(orig, self.position)
+        dir = [dir[i] / self.radii[i]**2 for i in range(3)]
+        L = [L[i] / self.radii[i]**2 for i in range(3)]
+        
+        a = dot(dir, dir)
+        b = 2 * dot(L, dir)
+        c = dot(L, L) - 1
+        discriminant = b**2 - 4*a*c
+
+        if discriminant < 0:
+            return None
+        
+        t0 = (-b - sqrt(discriminant)) / (2 * a)
+        t1 = (-b + sqrt(discriminant)) / (2 * a)
+
+        if t0 < 0:
+            t0 = t1
+        if t0 < 0:
+            return None
+        
+        P = vector_add(orig, multiply(t0, dir))
+        normal = subtract(P, self.position)
+        normal = normalize([normal[i] / self.radii[i]**2 for i in range(3)])
+
+        return Intercep(point=P, normal=normal, distance=t0, texCoords=None, rayDirection=dir, obj=self)
+
