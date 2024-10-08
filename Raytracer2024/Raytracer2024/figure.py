@@ -1,5 +1,6 @@
 from intercep import Intercep
-from math import atan2, acos, pi, isclose, sqrt
+from math import sin, cos, tan, asin, acos, atan, atan2, pi, sqrt, isclose
+
 from MathLib import *
 
 def vector_subtract(v1, v2):
@@ -205,46 +206,12 @@ class Triangle(Shape):
         if t > 0.001:  # Un pequeño margen para evitar intersecciones cercanas
             P = vector_add(orig, multiply(t, dir))
             normal = normalize(vector_cross(edge1, edge2))
-            return Intercep(point=P, normal=normal, distance=t, texCoords=[u, v], rayDirection=dir, obj=self)
+            # Cálculo de las coordenadas de textura
+            texCoords = [u, v]
+            return Intercep(point=P, normal=normal, distance=t, texCoords=texCoords, rayDirection=dir, obj=self)
         
         return None
-class OBB(Shape):
-    def __init__(self, position, size, rotation, material):
-        super().__init__(position, material)
-        self.size = size
-        self.rotation_matrix = RotationMatrix(*rotation)
-        self.type = "OBB"
-    
-    def ray_intersect(self, orig, dir):
-        # Transformar el rayo a las coordenadas locales del OBB
-        local_orig = multiplyMatrices(self.rotation_matrix, orig)
-        local_dir = multiplyMatrices(self.rotation_matrix, dir)
 
-        # Ahora podemos tratar el OBB como un AABB en las coordenadas locales
-        bounds_min = [-self.size[i] / 2 for i in range(3)]
-        bounds_max = [self.size[i] / 2 for i in range(3)]
-
-        tmin = float("-inf")
-        tmax = float("inf")
-
-        for i in range(3):
-            if abs(local_dir[i]) < 1e-6:
-                if local_orig[i] < bounds_min[i] or local_orig[i] > bounds_max[i]:
-                    return None
-            else:
-                t1 = (bounds_min[i] - local_orig[i]) / local_dir[i]
-                t2 = (bounds_max[i] - local_orig[i]) / local_dir[i]
-                tmin = max(tmin, min(t1, t2))
-                tmax = min(tmax, max(t1, t2))
-        
-        if tmax < tmin or tmax < 0:
-            return None
-
-        t = tmin if tmin > 0 else tmax
-        P = vector_add(orig, multiply(t, dir))
-        normal = normalize(subtract(P, self.position))
-
-        return Intercep(point=P, normal=normal, distance=t, texCoords=None, rayDirection=dir, obj=self)
 class Cylinder(Shape):
     def __init__(self, position, radius, height, material):
         super().__init__(position, material)
@@ -280,7 +247,12 @@ class Cylinder(Shape):
         normal = [P[0] - self.position[0], 0, P[2] - self.position[2]]
         normal = normalize(normal)
 
-        return Intercep(point=P, normal=normal, distance=t0, texCoords=None, rayDirection=dir, obj=self)
+        # Cálculo de las coordenadas de textura
+        u = (atan2(normal[2], normal[0]) + pi) / (2 * pi)
+        v = (y / self.height)
+
+        return Intercep(point=P, normal=normal, distance=t0, texCoords=[u, v], rayDirection=dir, obj=self)
+
 
 class Ellipsoid(Shape):
     def __init__(self, position, radii, material):
@@ -313,5 +285,8 @@ class Ellipsoid(Shape):
         normal = subtract(P, self.position)
         normal = normalize([normal[i] / self.radii[i]**2 for i in range(3)])
 
-        return Intercep(point=P, normal=normal, distance=t0, texCoords=None, rayDirection=dir, obj=self)
+        # Cálculo de las coordenadas de textura
+        u = 0.5 + (atan2(normal[2], normal[0]) / (2 * pi))
+        v = 0.5 - (asin(normal[1]) / pi)
 
+        return Intercep(point=P, normal=normal, distance=t0, texCoords=[u, v], rayDirection=dir, obj=self)
